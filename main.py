@@ -1,5 +1,5 @@
 from maze2d import Maze2DEnv
-from planner import rrt_star
+from planner import InformedRRTStar
 import numpy as np
 import cv2
 from time import perf_counter
@@ -27,8 +27,8 @@ def main():
     #(0,0) is top left
     
     maze_map = np.array([
-        [0,0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,1,0,0,0,0,0],
+        [0,0,0,0,1,0,0,0,0,0],
         [0,0,0,0,0,0,0,0,0,0],
         [0,0,0,0,0,0,0,0,0,0],
         [0,0,0,1,1,0,0,0,0,0],
@@ -51,23 +51,27 @@ def main():
     for r in range(len(maze_map)):
         for c in range(len(maze_map[0])):
             if maze_map[r][c]:
-                print((r,c))
+                # print((r,c))
+                pass
     
     
     #(y,x)
     env = Maze2DEnv(maze_map)
-    start = np.array([500, 20])
-    goal = np.array([600, 800])
+    start = (500, 20)
+    goal = (600, 800)
+    planner = InformedRRTStar(env, start, goal)
     
-    N = 1
+    N = 5
     t0 = perf_counter()
     for i in range(N):
-        path, nodes = rrt_star(
-            env, start, goal, step_size=MAZE_SIZE*MAX_STEP_SIZE, 
+        path, nodes = planner.calculate_path(
+            step_size=MAZE_SIZE*MAX_STEP_SIZE, 
             radius=0.5, max_iter=1000, goal_thresh=0.5)
     t1 = perf_counter()
+    
     print(f"Found in {(t1-t0)/N:.4f}")
-    print("path:", path)
+    # print(f"Path distance: {nodes[-1].cost}")
+    # print("path:", path)
     
     if path is not None:
         env.pos, env.goal = path[0], path[-1]

@@ -54,7 +54,7 @@ class Maze2DEnv(gym.Env):
         px, py = int(self.pos[0]), int(self.pos[1])
         grid[gy, gx] = 'G'
         grid[py, px] = 'A'
-        print("\n".join("".join(row) for row in grid[::-1]))
+        # print("\n".join("".join(row) for row in grid[::-1]))
         
     
     #view path
