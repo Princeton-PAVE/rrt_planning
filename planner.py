@@ -17,39 +17,39 @@ class InformedRRTStar:
         coord_order: str="rc",  # "rc" means (row, col) = (y,x). If you use (x,y), set "xy".
     ) -> None:
         """
-    Informed RRT*: after first solution, sample uniformly from the prolate hyperspheroid
-    (ellipse in 2D) that can still improve the best path cost.
+        Informed RRT*: after first solution, sample uniformly from the prolate hyperspheroid
+        (ellipse in 2D) that can still improve the best path cost.
 
-    Assumes Euclidean path length cost and free space in [0,h) x [0,w).
+        Assumes Euclidean path length cost and free space in [0,h) x [0,w).
 
-    coord_order:
-      - "rc": points are (row, col) and env.h, env.w correspond to (rows, cols)  ✅ for your Maze2DEnv
-      - "xy": points are (x, y)
-    
-    :param env: Obstacle ccupancy grid
-    :type env: Maze2DEnv
-    :param start: path start
-    :type start: tuple
-    :param goal: path end
-    :type goal: tuple
-    :param step_size: maximum size to step 
-    :type step_size: float
-    :param radius: kdtree radius?
-    :type radius: float
-    :param max_iter: total iterations to find and refine path
-    :type max_iter: int
-    :param goal_thresh: distance from goal to consider having reached it
-    :type goal_thresh: float
-    :param rebuild_every: num iters between rewiring all nodes
-    :type rebuild_every: int
-    :param goal_sample_rate: rate to try building path straight to goal
-    :type goal_sample_rate: float
-    :param coord_order: coordinate order
-    :type coord_order: str
-    :return: tuple of nodes lowk could just be one
-    :rtype: tuple
-    
-    """
+        coord_order:
+        - "rc": points are (row, col) and env.h, env.w correspond to (rows, cols)  ✅ for your Maze2DEnv
+        - "xy": points are (x, y)
+        
+        :param env: Obstacle ccupancy grid
+        :type env: Maze2DEnv
+        :param start: path start
+        :type start: tuple
+        :param goal: path end
+        :type goal: tuple
+        :param step_size: maximum size to step 
+        :type step_size: float
+        :param radius: kdtree radius?
+        :type radius: float
+        :param max_iter: total iterations to find and refine path
+        :type max_iter: int
+        :param goal_thresh: distance from goal to consider having reached it
+        :type goal_thresh: float
+        :param rebuild_every: num iters between rewiring all nodes
+        :type rebuild_every: int
+        :param goal_sample_rate: rate to try building path straight to goal
+        :type goal_sample_rate: float
+        :param coord_order: coordinate order
+        :type coord_order: str
+        :return: tuple of nodes lowk could just be one
+        :rtype: tuple
+        
+        """
 
         self.env = env
         self.start = np.array(start, dtype=np.float32)
@@ -130,8 +130,18 @@ class InformedRRTStar:
     ) -> tuple:
         # --- Main loop ---
         nodes = [Node(self.start)]
-        positions = np.array([self.start], dtype=np.float32)
-        tree = cKDTree(positions)
+        # positions = np.array([self.start], dtype=np.float32)
+        positions = np.empty((max_iter + 1, 2), dtype=np.float32)
+        parents = np.empty((max_iter + 1), dtype=np.int32)
+        costs = np.empty((max_iter + 1), dtype=np.float32)
+        
+        positions[0] = self.start
+        parents[0] = -1 # -1 indicates root
+        costs[0] = 0        
+        
+        n_nodes = 1
+        
+        tree = cKDTree(positions[:n_nodes])
 
         best_goal_node = None
         best_cost = float("inf")
@@ -148,70 +158,85 @@ class InformedRRTStar:
 
             # Nearest
             _, idx = tree.query(rnd, k=1)
-            nearest = nodes[int(idx)]
+            # print(n_nodes, positions.shape[0], idx, len(nodes))
+            # nearest = nodes[int(idx)]
+            nearest = positions[idx]
 
-            direction = rnd - nearest.pos
+            direction = rnd - nearest
             dist = float(np.linalg.norm(direction))
             if dist == 0.0:
                 continue
 
-            new_pos = nearest.pos + (direction / dist) * min(step_size, dist)
+            new_pos = nearest + (direction / dist) * min(step_size, dist)
 
-            if self.env._is_wall(new_pos) or not self.collision_free(nearest.pos, new_pos):
+            if self.env._is_wall(new_pos) or not self.collision_free(nearest, new_pos):
                 continue
 
             # Choose best parent among neighbors (RRT* step)
             neighbor_idxs = tree.query_ball_point(new_pos, r=radius)
 
-            best_parent = nearest
-            best_parent_cost = nearest.cost + np.linalg.norm(new_pos - nearest.pos)
+            # best_parent = nearest
+            best_parent_cost = costs[idx] + np.linalg.norm(new_pos - nearest)
 
             for j in neighbor_idxs:
-                n = nodes[j]
-                if not self.collision_free(n.pos, new_pos):
+                # n = nodes[j]
+                if not self.collision_free(positions[j], new_pos):
                     continue
-                c = n.cost + np.linalg.norm(new_pos - n.pos)
+                c = costs[j] + np.linalg.norm(new_pos - positions[j])
                 if c < best_parent_cost:
-                    best_parent = n
+                    # best_parent = n
                     best_parent_cost = c
 
-            new_node = Node(new_pos, best_parent)
-            new_node.cost = float(best_parent_cost)
+            # new_node = Node(new_pos, best_parent)
+            # new_node.cost = float(best_parent_cost)
 
             # Add node
-            nodes.append(new_node)
-            positions = np.vstack([positions, new_node.pos])
+            # nodes.append(new_node)
+            positions[n_nodes] = new_pos #new_node.pos
+            parents[n_nodes] = idx
+            costs[n_nodes] = best_parent_cost
+            n_nodes += 1
+            # positions = np.vstack([positions, new_node.pos])
 
             # Rewire neighbors through new node
             for j in neighbor_idxs:
-                n = nodes[j]
-                if n is new_node:
+                if j == n_nodes:
                     continue
-                if not self.collision_free(new_node.pos, n.pos):
+                if not self.collision_free(positions[n_nodes], positions[j]):
                     continue
-                new_cost = new_node.cost + np.linalg.norm(n.pos - new_node.pos)
-                if new_cost < n.cost:
-                    n.parent = new_node
-                    n.cost = float(new_cost)
+                new_cost = costs[n_nodes] + np.linalg.norm(positions[j] - positions[n_nodes])
+                if new_cost < costs[j]:
+                    parents[j] = n_nodes
+                    costs[j] = float(new_cost)
+                
+                # n = nodes[j]
+                # if n is new_node:
+                #     continue
+                # if not self.collision_free(new_node.pos, n.pos):
+                #     continue
+                # new_cost = new_node.cost + np.linalg.norm(n.pos - new_node.pos)
+                # if new_cost < n.cost:
+                #     n.parent = new_node
+                #     n.cost = float(new_cost)
 
             # Rebuild KD-tree
             if (len(nodes) % rebuild_every) == 0:
-                tree = cKDTree(positions)
+                tree = cKDTree(positions[:n_nodes])
 
             # Goal check / update best
-            if np.linalg.norm(new_node.pos - self.goal) < goal_thresh:
-                if new_node.cost < best_cost:
-                    best_goal_node = new_node
-                    best_cost = float(new_node.cost)
+            if np.linalg.norm(positions[n_nodes]- self.goal) < goal_thresh:
+                if costs[n_nodes] < best_cost:
+                    best_goal_node = n_nodes
+                    best_cost = float(costs[n_nodes])
 
         node_positions = positions
 
         if best_goal_node is not None:
             path = []
             cur = best_goal_node
-            while cur is not None:
-                path.append(cur.pos)
-                cur = cur.parent
+            while cur >= 0:
+                path.append(positions[cur])
+                cur = parents[cur]
             path = np.array(path[::-1], dtype=np.float32)
             # return path, nodes
             return path, node_positions

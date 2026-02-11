@@ -61,9 +61,10 @@ def main():
     goal = (600, 800)
     planner = InformedRRTStar(env, start, goal)
     
-    N = 5
+    N = 10
     t0 = perf_counter()
     for i in range(N):
+        # print("run", i)
         path, nodes = planner.calculate_path(
             step_size=MAZE_SIZE*MAX_STEP_SIZE, 
             radius=0.5, max_iter=1000, goal_thresh=0.5)
