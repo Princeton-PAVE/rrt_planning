@@ -41,19 +41,12 @@ def main():
     
     MAZE_SIZE = 1000 # length width
     MAX_STEP_SIZE = 0.025 # units are in proportion of MAZE_SIZE
-    GOAL_SIZE = 1
+    GOAL_SIZE = 0.05
+    REWIRE_SIZE = 0.025
+    
     
     maze_map = maze_map.astype(np.uint8)
-    maze_map = cv2.resize(maze_map, (MAZE_SIZE, MAZE_SIZE), interpolation=cv2.INTER_NEAREST)
-
-    #maze_map = [[0] * 100 for _ in range(10)]
-    
-    for r in range(len(maze_map)):
-        for c in range(len(maze_map[0])):
-            if maze_map[r][c]:
-                # print((r,c))
-                pass
-    
+    maze_map = cv2.resize(maze_map, (MAZE_SIZE, MAZE_SIZE), interpolation=cv2.INTER_NEAREST) 
     
     #(y,x)
     env = Maze2DEnv(maze_map)
@@ -61,13 +54,13 @@ def main():
     goal = (600, 800)
     planner = InformedRRTStar(env, start, goal)
     
-    N = 10
+    N = 5
     t0 = perf_counter()
     for i in range(N):
         # print("run", i)
         path, nodes = planner.calculate_path(
             step_size=MAZE_SIZE*MAX_STEP_SIZE, 
-            radius=0.5, max_iter=1000, goal_thresh=0.5)
+            radius=MAZE_SIZE*REWIRE_SIZE, max_iter=1000, goal_thresh=MAZE_SIZE*GOAL_SIZE)
     t1 = perf_counter()
     
     print(f"Found in {(t1-t0)/N:.4f}")

@@ -2,11 +2,11 @@ import numpy as np, math, random
 from scipy.spatial import cKDTree
 from maze2d import *
 
-class Node:
-    def __init__(self, pos, parent=None):
-        self.pos = np.array(pos, dtype=np.float32)
-        self.parent = parent
-        self.cost = 0.0 if parent is None else parent.cost + np.linalg.norm(self.pos - parent.pos)
+# class Node:
+#     def __init__(self, pos, parent=None):
+#         self.pos = np.array(pos, dtype=np.float32)
+#         self.parent = parent
+#         self.cost = 0.0 if parent is None else parent.cost + np.linalg.norm(self.pos - parent.pos)
 
 class InformedRRTStar:
     def __init__(
@@ -58,6 +58,7 @@ class InformedRRTStar:
 
     def collision_free(self, p1, p2):
         dist = np.linalg.norm(p2 - p1)
+        # print(p1, p2)
         steps = max(2, int(dist / 0.5))  # tune resolution; 0.05 was extremely fine for 100x100
         for t in np.linspace(0, 1, steps):
             p = p1 + t * (p2 - p1)
@@ -129,7 +130,7 @@ class InformedRRTStar:
         goal_sample_rate: float=0.1,
     ) -> tuple:
         # --- Main loop ---
-        nodes = [Node(self.start)]
+        # nodes = [Node(self.start)]
         # positions = np.array([self.start], dtype=np.float32)
         positions = np.empty((max_iter + 1, 2), dtype=np.float32)
         parents = np.empty((max_iter + 1), dtype=np.int32)
@@ -139,9 +140,9 @@ class InformedRRTStar:
         parents[0] = -1 # -1 indicates root
         costs[0] = 0        
         
-        n_nodes = 1
+        cur_node_idx = 1
         
-        tree = cKDTree(positions[:n_nodes])
+        tree = cKDTree(positions[:cur_node_idx])
 
         best_goal_node = None
         best_cost = float("inf")
@@ -163,7 +164,7 @@ class InformedRRTStar:
             nearest = positions[idx]
 
             direction = rnd - nearest
-            dist = float(np.linalg.norm(direction))
+            dist = np.linalg.norm(direction)
             if dist == 0.0:
                 continue
 
@@ -173,9 +174,10 @@ class InformedRRTStar:
                 continue
 
             # Choose best parent among neighbors (RRT* step)
-            neighbor_idxs = tree.query_ball_point(new_pos, r=radius)
+            # the best parent may have changed when capping the step size
+            neighbor_idxs = tree.query_ball_point(new_pos, r=radius) # TODO decide radius ------------------------------------------
 
-            # best_parent = nearest
+            best_parent = idx
             best_parent_cost = costs[idx] + np.linalg.norm(new_pos - nearest)
 
             for j in neighbor_idxs:
@@ -184,7 +186,7 @@ class InformedRRTStar:
                     continue
                 c = costs[j] + np.linalg.norm(new_pos - positions[j])
                 if c < best_parent_cost:
-                    # best_parent = n
+                    best_parent = j
                     best_parent_cost = c
 
             # new_node = Node(new_pos, best_parent)
@@ -192,22 +194,23 @@ class InformedRRTStar:
 
             # Add node
             # nodes.append(new_node)
-            positions[n_nodes] = new_pos #new_node.pos
-            parents[n_nodes] = idx
-            costs[n_nodes] = best_parent_cost
-            n_nodes += 1
+            positions[cur_node_idx] = new_pos #new_node.pos
+            parents[cur_node_idx] = best_parent
+            costs[cur_node_idx] = best_parent_cost
             # positions = np.vstack([positions, new_node.pos])
 
             # Rewire neighbors through new node
             for j in neighbor_idxs:
-                if j == n_nodes:
+                if j == cur_node_idx:
                     continue
-                if not self.collision_free(positions[n_nodes], positions[j]):
+                # print("hi")
+                # print(new_pos, dist)
+                if not self.collision_free(positions[cur_node_idx], positions[j]):
                     continue
-                new_cost = costs[n_nodes] + np.linalg.norm(positions[j] - positions[n_nodes])
+                new_cost = costs[cur_node_idx] + np.linalg.norm(positions[j] - positions[cur_node_idx])
                 if new_cost < costs[j]:
-                    parents[j] = n_nodes
-                    costs[j] = float(new_cost)
+                    parents[j] = cur_node_idx
+                    costs[j] = new_cost
                 
                 # n = nodes[j]
                 # if n is new_node:
@@ -220,23 +223,26 @@ class InformedRRTStar:
                 #     n.cost = float(new_cost)
 
             # Rebuild KD-tree
-            if (len(nodes) % rebuild_every) == 0:
-                tree = cKDTree(positions[:n_nodes])
+            if (cur_node_idx % rebuild_every) == 0:
+                tree = cKDTree(positions[:cur_node_idx])
 
             # Goal check / update best
-            if np.linalg.norm(positions[n_nodes]- self.goal) < goal_thresh:
-                if costs[n_nodes] < best_cost:
-                    best_goal_node = n_nodes
-                    best_cost = float(costs[n_nodes])
+            if np.linalg.norm(positions[cur_node_idx] - self.goal) < goal_thresh:
+                if costs[cur_node_idx] < best_cost:
+                    best_goal_node = cur_node_idx
+                    best_cost = costs[cur_node_idx]
+                    
+                    
+            cur_node_idx += 1
 
         node_positions = positions
 
         if best_goal_node is not None:
             path = []
-            cur = best_goal_node
-            while cur >= 0:
-                path.append(positions[cur])
-                cur = parents[cur]
+            cur_node = best_goal_node
+            while cur_node >= 0:
+                path.append(positions[cur_node])
+                cur_node = parents[cur_node]
             path = np.array(path[::-1], dtype=np.float32)
             # return path, nodes
             return path, node_positions
