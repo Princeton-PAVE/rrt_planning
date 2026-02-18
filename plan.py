@@ -7,7 +7,10 @@ from operator import itemgetter
 import math
 #GUI visualizer
 import pyqtgraph as pg
-from pyqtgraph.Qt import QtWidgets
+from pyqtgraph.Qt import QtWidgets, QtCore
+from collections import deque
+import time
+import cv2
 
 #we want matrix to be an occupancy matrix
 
@@ -28,21 +31,36 @@ assume following json
 #(0,0) is top left
 
 #(1,1), width = 1, height = 1, 3x3 around (1,1)
-
+#yaw is clockwise from x-axis
 
 """
 
 
-mock_data = [{"object_tag": "car", "center": [1, 1], "dimensions": [1, 1], "yaw": 0}]
+queue = [[{"object_tag": "car", "center": [400, 400], "dimensions": [100, 20], "yaw": 0},
+             {"object_tag": "car", "center": [30, 100], "dimensions": [50, 10], "yaw": 0 },
+             {"object_tag": "car", "center": [720, 700], "dimensions": [200.5, 20], "yaw": 3*np.pi/4}],
+            [{"object_tag": "car", "center": [400, 400], "dimensions": [10, 20], "yaw": 0},
+             {"object_tag": "car", "center": [30, 100], "dimensions": [50, 10], "yaw": 0 },
+             {"object_tag": "car", "center": [730, 700], "dimensions": [200.5, 20], "yaw": 3*np.pi/4}],
+            [{"object_tag": "car", "center": [40, 400], "dimensions": [10, 20], "yaw": 0},
+             {"object_tag": "car", "center": [30, 100], "dimensions": [50, 10], "yaw": 0 },
+             {"object_tag": "car", "center": [740, 70], "dimensions": [200.5, 20], "yaw": 10*np.pi/4}],
+            [{"object_tag": "car", "center": [40, 40], "dimensions": [100, 20], "yaw": 0},
+             {"object_tag": "car", "center": [30, 100], "dimensions": [50, 10], "yaw": 0 },
+             {"object_tag": "car", "center": [70, 700], "dimensions": [200.5, 20], "yaw": 2.5*np.pi/4}],
+            [{"object_tag": "car", "center": [400, 400], "dimensions": [100, 20], "yaw": 0},
+             {"object_tag": "car", "center": [30, 100], "dimensions": [50, 10], "yaw": 0 },
+             {"object_tag": "car", "center": [750, 700], "dimensions": [20.5, 20], "yaw": 3*np.pi/4}]
+        ]
+
+#queue = [mock_data]
 
 
-app = QtWidgets.QApplication([])
+MATRIX_HEIGHT = 1000
+MATRIX_WIDTH = 1000
 
 
-MATRIX_HEIGHT = 100
-MATRIX_WIDTH = 100
 
-input_queue = queue.Queue()
 
 
 """
@@ -57,17 +75,7 @@ data = {"object_tag": "Mayank in box form", "center": (500, 500),
 #assume data is list of bbox params (listed above) #BAD GPT USED
 def fill_bev_matrix(data: List) -> np.ndarray:
 
-    matrix = np.full([MATRIX_HEIGHT, MATRIX_WIDTH], 255)
-    
-    # add depth
-
-    # from operator import itemgetter
-    # ...
-    # params = {'a': 1, 'b': 2}
-    # a, b = itemgetter('a', 'b')(params)
-    #print("")
-    
-    
+    matrix = np.full([MATRIX_HEIGHT, MATRIX_WIDTH], 255)    
     
     
     for obj in data: 
@@ -112,44 +120,106 @@ def fill_bev_matrix(data: List) -> np.ndarray:
         matrix[mask] = 0
         
         #matrix[Y,X] = 0
-
-                
-        
     
     return matrix
        
+
+
        
-#main loop 
-def plan(json_file):
+def visualize(matrix):
     
-    while True:
+    _win.setImage(matrix.T, autoLevels=False)
+    pg.QtWidgets.QApplication.processEvents() 
+    
+cv2.destroyAllWindows()
+#main loop 
+def plan(input_queue):
+    #queue 
+    while input_queue:
         #Loop is pull data from Mayank's team
         #fill occupancy matrix
         #do something with it !
-        if input_queue:
-            data = input_queue.get().jsonify() #maybe unjsonify #this channel will block until new data comes in
-            bev_matrix = fill_bev_matrix(data) #bev cell
-            #show GUI
-            do_something(bev_matrix) #render + calculate action  #MAYBE ILQR IF ROCCO APPROVES (need his approval)
+        #data = input_queue.get().jsonify() #maybe unjsonify #this channel will block until new data comes in
+        current_data = input_queue.popleft()
+        bev_matrix = fill_bev_matrix(current_data) #bev cell
+        visualize(bev_matrix)
+        #show GUI
+        #do_something(bev_matrix)
+        #path, nodes = rrt_star(
+            #bev_matrix, start, goal, step_size=MAZE_SIZE*MAX_STEP_SIZE, 
+            #radius=0.5, max_iter=1000, goal_thresh=0.5)
+        #do_something(bev_matrix) #render + calculate action  #MAYBE ILQR IF ROCCO APPROVES (need his approval)
+        # time.sleep(1000)
         
 
 
-#next time
-#set up Pygame renderer
-#make sure fill_occupancy_matrix works
-#figure out what do_something() (planner) will do!
+def generate_data() -> deque:
+    dataQueue = deque()
 
-win = pg.ImageView()
-bev_matrix = fill_bev_matrix(mock_data)
-print("bev_matrix", bev_matrix)
-win.setImage(bev_matrix.T)
-win.show()
+
+    iterations = 20
+    dt = 1
+    angular_freq = 0.1
+    movement_vel = 1
+    for i in range(iterations):
+        t = i * dt
+        dataQueue.appendleft([
+            {"object_tag": "car", "center": [750 - movement_vel * t, 700], "dimensions": [400, 100], "yaw": angular_freq * t}
+        ])
     
-app.exec()
+    return dataQueue
+
+
+_win = pg.ImageView()
+_win.show()
 
 
 
+"""
+from pyqtgraph.Qt import QtWidgets, QtCore
+
+class DataProducer(QtCore.QObject):
+        data_ready = QtCore.pyqtSignal(list) 
+        
+        def generate(self):
+            dataQueue = deque()
+            iterations = 20
+            dt = 1
+            angular_freq = 0.1
+            movement_vel = 1
+            for i in range(iterations):
+                t = i * dt
+                dataQueue.appendleft([
+                    {"object_tag": "car", "center": [750 - movement_vel * t, 700], "dimensions": [400, 100], "yaw": angular_freq * t}
+                ])
+            self.data_ready.emit(dataQueue)
+    
+elsewhere in the code:
+
+emitter = DataEmitter()
+emitter.data_ready.connect(lambda data: plan(data))
+"""
+
+def main():
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    data_queue = generate_data()
+    
+
+    thread = threading.Thread(target = plan, args=(data_queue,), kwargs={})
+    thread.start()
+
+    app.exec()
+    
+    """
+    timer = QtCore.QTimer()
+    timer.timeout.connect(lambda: plan(data_queue))
+    """
+    # timer.start(1000)  # Check the queue every 10ms (100 FPS)
+    # print("data_queue", data_queue)
+    # plan(data_queue)
     
     
-
-
+        
+if __name__ == "__main__":
+    main()
+    
