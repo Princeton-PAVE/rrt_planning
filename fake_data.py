@@ -1,0 +1,16 @@
+
+queue = deque([[{"object_tag": "car", "center": [400, 400], "dimensions": [100, 20], "yaw": 0},
+             {"object_tag": "car", "center": [30, 100], "dimensions": [50, 10], "yaw": 0 },
+             {"object_tag": "car", "center": [720, 700], "dimensions": [200.5, 20], "yaw": 3*np.pi/4}],
+            [{"object_tag": "car", "center": [400, 400], "dimensions": [10, 20], "yaw": 0},
+             {"object_tag": "car", "center": [30, 100], "dimensions": [50, 10], "yaw": 0 },
+             {"object_tag": "car", "center": [730, 700], "dimensions": [200.5, 20], "yaw": 3*np.pi/4}],
+            [{"object_tag": "car", "center": [40, 400], "dimensions": [10, 20], "yaw": 0},
+             {"object_tag": "car", "center": [30, 100], "dimensions": [50, 10], "yaw": 0 },
+             {"object_tag": "car", "center": [740, 70], "dimensions": [200.5, 20], "yaw": 10*np.pi/4}],
+            [{"object_tag": "car", "center": [40, 40], "dimensions": [100, 20], "yaw": 0},
+             {"object_tag": "car", "center": [30, 100], "dimensions": [50, 10], "yaw": 0 },
+             {"object_tag": "car", "center": [70, 700], "dimensions": [200.5, 20], "yaw": 2.5*np.pi/4}],
+            [{"object_tag": "car", "center": [400, 400], "dimensions": [100, 20], "yaw": 0},
+             {"object_tag": "car", "center": [30, 100], "dimensions": [50, 10], "yaw": 0 },
+             {"object_tag": "car", "center": [750, 700], "dimensions": [20.5, 20], "yaw": 3*np.pi/4}]])
