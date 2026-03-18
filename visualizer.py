@@ -12,7 +12,7 @@ class BevEnv:
         r = int(round(p[0])); c = int(round(p[1]))
         if r < 0 or r >= self.h or c < 0 or c >= self.w:
             return True
-        return self.occ[r, c] == 0  
+        return self.occ[r, c] == 0
 
         
         
@@ -29,7 +29,8 @@ def visualize_plan(
     node_radius=2,          
     edge_stride=3,          
     max_edge_len=25.0,           
-    branch_alpha=0.75,           
+    branch_alpha=0.75, 
+    vis_controls=None          
 ):
     maze = maze_uint8.astype(np.uint8)
     if maze.max() <= 1:
@@ -43,6 +44,15 @@ def visualize_plan(
 
     overlay = base.copy()
 
+
+    #check this
+    if vis_controls is not None and len(vis_controls) > 1:
+        p = np.asarray(vis_controls, dtype=np.float32)
+        poly = np.stack([p[:, 1], p[:, 0]], axis=1)
+        poly = np.round(poly).astype(np.int32).reshape(-1, 1, 2)
+        cv2.polylines(out, [poly], False, (0, 255, 0), thickness=4, lineType=cv2.LINE_AA)
+        
+        
     if nodes_rc is not None and len(nodes_rc) > 1:
         pts = np.asarray(nodes_rc, dtype=np.float32)
 
