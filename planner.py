@@ -104,6 +104,10 @@ def rrt_star(env, start, goal, step_size=2.0, radius=10.0, max_iter=5000, goal_t
 """
 import numpy as np, math, random
 from scipy.spatial import cKDTree
+import random
+SEED = 42
+random.seed(SEED)
+np.random.seed(SEED)
 
 class Node:
     def __init__(self, pos, parent=None):

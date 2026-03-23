@@ -50,8 +50,7 @@ def visualize_plan(
         p = np.asarray(vis_controls, dtype=np.float32)
         poly = np.stack([p[:, 1], p[:, 0]], axis=1)
         poly = np.round(poly).astype(np.int32).reshape(-1, 1, 2)
-        cv2.polylines(out, [poly], False, (0, 255, 0), thickness=4, lineType=cv2.LINE_AA)
-        
+        cv2.polylines(overlay, [poly], False, (255, 0, 0), thickness=4, lineType=cv2.LINE_AA) #OUR CONTROL RECONSTRUCTION IS BLUE
         
     if nodes_rc is not None and len(nodes_rc) > 1:
         pts = np.asarray(nodes_rc, dtype=np.float32)
@@ -101,4 +100,21 @@ def visualize_plan(
     if scale != 1:
         out = cv2.resize(out, (W * scale, H * scale), interpolation=cv2.INTER_NEAREST)
 
+    
+    # --- Legend ---
+    legend_x, legend_y = 10, 20
+    line_gap = 25
+
+    # Blue line (reconstructed controls)
+    cv2.line(out, (legend_x, legend_y), (legend_x + 30, legend_y), (255, 0, 0), 4)
+    cv2.putText(out, "Reconstructed (controls)", 
+                (legend_x + 40, legend_y + 5),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2, cv2.LINE_AA)
+
+    # Green line (RRT* path)
+    cv2.line(out, (legend_x, legend_y + line_gap), 
+                (legend_x + 30, legend_y + line_gap), (0, 255, 0), 4)
+    cv2.putText(out, "Ground truth (RRT*)", 
+                (legend_x + 40, legend_y + line_gap + 5),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA)
     return out
