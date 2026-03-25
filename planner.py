@@ -54,17 +54,35 @@ class InformedRRTStar:
         self.env = env
         self.start = np.array(start, dtype=np.float32)
         self.goal  = np.array(goal,  dtype=np.float32)
+        self.collision_step_size = 0.5 # non-proportional units?
         self.coord_order = coord_order
+        
+        # precompute ellipse
+        self.c_min = float(np.linalg.norm(self.goal - self.start))
+        self.ellipse_center = 0.5 * (self.start + self.goal)
+        a1 = (self.goal - self.start) / (self.c_min + 1e-9)  
+        self.C = InformedRRTStar._rotation_to_align_with_a1(a1) # rotate unit disk x-axis to a1
+        
 
     def collision_free(self, p1, p2):
         dist = np.linalg.norm(p2 - p1)
-        # print(p1, p2)
-        steps = max(2, int(dist / 0.5))  # tune resolution; 0.05 was extremely fine for 100x100
-        for t in np.linspace(0, 1, steps):
-            p = p1 + t * (p2 - p1)
-            if self.env._is_wall(p):
-                return False
-        return True
+        steps = max(2, int(dist / self.collision_step_size))
+        
+        ts = np.linspace(0, 1, steps).reshape(-1, 1)
+        points = p1 + ts * (p2 - p1)  # shape (steps, 2)
+        
+        rows = points[:, 0]
+        cols = points[:, 1]
+        
+        # Bounds check
+        if np.any((rows < 0) | (cols < 0) | (rows >= self.env.h) | (cols >= self.env.w)):
+            return False
+        
+        r = np.floor(rows).astype(int)
+        c = np.floor(cols).astype(int)
+        
+        return not np.any(self.env.maze[r, c] > 0)   
+    
 
     # --- Informed sampling helpers (2D) ---
     @staticmethod
@@ -100,24 +118,19 @@ class InformedRRTStar:
             return self.sample_free_uniform()
 
         # Lower bound straight-line distance between foci
-        c_min = float(np.linalg.norm(self.goal - self.start))
-        if c_best <= c_min + 1e-6:
+        if c_best <= self.c_min + 1e-6:
             # Already at (near) straight line optimum; just bias to goal/uniform
             return self.sample_free_uniform()
 
         # Ellipse parameters (Informed RRT*)
-        center = 0.5 * (self.start + self.goal)
-        a1 = (self.goal - self.start) / (c_min + 1e-9)               # major axis direction
-        C = InformedRRTStar._rotation_to_align_with_a1(a1)                 # rotate unit disk x-axis to a1
-
         a = c_best / 2.0                                   # semi-major axis length
-        b = math.sqrt(max(c_best * c_best - c_min * c_min, 0.0)) / 2.0  # semi-minor axis length
+        b = math.sqrt(max(c_best * c_best - self.c_min * self.c_min, 0.0)) / 2.0  # semi-minor axis length
 
         L = np.array([[a, 0.0],
                       [0.0, b]], dtype=np.float32)
 
         x_ball = InformedRRTStar._sample_unit_ball_2d()
-        x = (C @ (L @ x_ball)) + center
+        x = (self.C @ (L @ x_ball)) + self.ellipse_center
         return x.astype(np.float32)
 
     def calculate_path(
@@ -129,9 +142,24 @@ class InformedRRTStar:
         rebuild_every: int=1, 
         goal_sample_rate: float=0.1,
     ) -> tuple:
-        # --- Main loop ---
-        # nodes = [Node(self.start)]
-        # positions = np.array([self.start], dtype=np.float32)
+        """_summary_
+
+        Args:
+            step_size (float, optional): _description_. Defaults to 2.0.
+            radius (float, optional): _description_. Defaults to 10.0.
+            max_iter (int, optional): _description_. Defaults to 5000.
+            goal_thresh (float, optional): _description_. Defaults to 0.5.
+            rebuild_every (int, optional): _description_. Defaults to 1.
+            goal_sample_rate (float, optional): _description_. Defaults to 0.1.
+
+        Returns:
+            tuple: (path, all_sampled), where path is an ndarray of each
+            point in the final path and all_sampled is all points 
+            generated and tested by the algorithm. Note all_sampled
+            is not necessary for the algorithm, it's only for 
+            visualization.
+        """
+        
         positions = np.empty((max_iter + 1, 2), dtype=np.float32)
         parents = np.empty((max_iter + 1), dtype=np.int32)
         costs = np.empty((max_iter + 1), dtype=np.float32)
@@ -159,13 +187,11 @@ class InformedRRTStar:
 
             # Nearest
             _, idx = tree.query(rnd, k=1)
-            # print(n_nodes, positions.shape[0], idx, len(nodes))
-            # nearest = nodes[int(idx)]
             nearest = positions[idx]
 
             direction = rnd - nearest
             dist = np.linalg.norm(direction)
-            if dist == 0.0:
+            if dist <= 1e-6:
                 continue
 
             new_pos = nearest + (direction / dist) * min(step_size, dist)
@@ -181,7 +207,6 @@ class InformedRRTStar:
             best_parent_cost = costs[idx] + np.linalg.norm(new_pos - nearest)
 
             for j in neighbor_idxs:
-                # n = nodes[j]
                 if not self.collision_free(positions[j], new_pos):
                     continue
                 c = costs[j] + np.linalg.norm(new_pos - positions[j])
@@ -189,38 +214,27 @@ class InformedRRTStar:
                     best_parent = j
                     best_parent_cost = c
 
-            # new_node = Node(new_pos, best_parent)
-            # new_node.cost = float(best_parent_cost)
-
             # Add node
-            # nodes.append(new_node)
-            positions[cur_node_idx] = new_pos #new_node.pos
+            positions[cur_node_idx] = new_pos
             parents[cur_node_idx] = best_parent
             costs[cur_node_idx] = best_parent_cost
-            # positions = np.vstack([positions, new_node.pos])
 
             # Rewire neighbors through new node
             for j in neighbor_idxs:
                 if j == cur_node_idx:
                     continue
-                # print("hi")
-                # print(new_pos, dist)
+                
                 if not self.collision_free(positions[cur_node_idx], positions[j]):
                     continue
-                new_cost = costs[cur_node_idx] + np.linalg.norm(positions[j] - positions[cur_node_idx])
+                
+                dx = positions[j, 0] - new_pos[0]
+                dy = positions[j, 1] - new_pos[1]
+                d = math.sqrt(dx*dx + dy*dy)
+                
+                new_cost = costs[cur_node_idx] + d
                 if new_cost < costs[j]:
                     parents[j] = cur_node_idx
                     costs[j] = new_cost
-                
-                # n = nodes[j]
-                # if n is new_node:
-                #     continue
-                # if not self.collision_free(new_node.pos, n.pos):
-                #     continue
-                # new_cost = new_node.cost + np.linalg.norm(n.pos - new_node.pos)
-                # if new_cost < n.cost:
-                #     n.parent = new_node
-                #     n.cost = float(new_cost)
 
             # Rebuild KD-tree
             if (cur_node_idx % rebuild_every) == 0:
@@ -232,11 +246,11 @@ class InformedRRTStar:
                     best_goal_node = cur_node_idx
                     best_cost = costs[cur_node_idx]
                     
-                    
             cur_node_idx += 1
 
-        node_positions = positions
+        node_positions = positions[:cur_node_idx]
 
+        # return nodes
         if best_goal_node is not None:
             path = []
             cur_node = best_goal_node
@@ -244,7 +258,6 @@ class InformedRRTStar:
                 path.append(positions[cur_node])
                 cur_node = parents[cur_node]
             path = np.array(path[::-1], dtype=np.float32)
-            # return path, nodes
             return path, node_positions
 
         return None, node_positions

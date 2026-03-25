@@ -64,17 +64,17 @@ class Maze2DEnv(gym.Env):
 
         ax.imshow(self.maze, cmap="gray_r", origin="upper", extent=[0, w, 0, h])
 
-        for x in range(w + 1):
-            ax.axvline(x, color='black', linewidth=0.5, alpha=0.3)
-        for y in range(h + 1):
-            ax.axhline(y, color='black', linewidth=0.5, alpha=0.3)
+        # for x in range(w + 1):
+        #     ax.axvline(x, color='black', linewidth=0.5, alpha=0.3)
+        # for y in range(h + 1):
+        #     ax.axhline(y, color='black', linewidth=0.5, alpha=0.3)
 
         # plot all RRT* nodes (different from path)
         if nodes is not None and len(nodes) > 0:
             nodes = np.array(nodes, dtype=np.float32)
             ax.scatter(
                 nodes[:, 1], h - nodes[:, 0],
-                s=8, marker='.', alpha=0.35,
+                s=8, marker='.', alpha=0.35, c="#CC67CC",
                 label="RRT* nodes", zorder=1
             )
 
