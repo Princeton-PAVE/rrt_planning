@@ -6,8 +6,8 @@ from typing import List
 from operator import itemgetter
 import math
 #GUI visualizer
-import pyqtgraph as pg
-from pyqtgraph.Qt import QtWidgets, QtCore
+# import pyqtgraph as pg
+# from pyqtgraph.Qt import QtWidgets, QtCore
 from collections import deque
 import time
 import cv2
@@ -74,6 +74,7 @@ WINDOW_NAME = "bev"
 
 m = 1 #mass
 delta_t = 1
+WHEELBASE = 1
 
 
 """
@@ -138,7 +139,7 @@ def get_control_path(controls, init_state):
     positions = []#np.array([], dtype=np.float64)
     positions.append(position.copy())
     #acceleration, angle is contr
-    print("controls", controls)
+    # print("controls", controls)
     #pdb.set_trace()
     for a, steering_angle in controls:
         distance_traveled = delta_t * velocity + 1/2 * a * delta_t ** 2
@@ -163,6 +164,63 @@ def get_control_path(controls, init_state):
     return positions
 
 
+ARC_FIDELITY = 20
+#same as get_control_path but for the back wheels
+#treating the car as a line, front wheels and back wheels
+#CURRENT MODEL: front wheels snap to angle
+def get_control_path_back(controls, init_state):
+    position = np.array([init_state[0], init_state[1]], dtype = np.float64)
+    heading = 0
+    velocity = 0
+
+    density = 6
+    positions = []#np.array([], dtype=np.float64)
+    positions.append(position)
+    #acceleration, angle is contr
+    # print("controls", controls)
+    #pdb.set_trace()
+
+    def in_vehicle_coordinate_system(x, y):
+        x_transformed = position[0] + np.cos(heading) * x + np.cos(heading + math.pi / 2) * y
+        y_transformed = position[1] + np.sin(heading) * x + np.sin(heading + math.pi / 2) * y
+        return np.array([x_transformed, y_transformed], dtype = np.float64)
+
+    
+
+    for a, steering_angle in controls:
+        total_distance = delta_t * velocity + 1/2 * a * delta_t ** 2
+        #print("distance_traveled", distance_traveled)
+        #pdb.set_trace()
+        curvature = (1 / WHEELBASE) * np.tan(steering_angle)
+        
+        # sin x / x
+        def sinc(x):
+            # numpy uses the normalized sinc function
+            return np.sinc(x / np.pi)
+        
+        # Calculates position of vehicle after it travels a given distance
+        def calculate_arc(distance_travelled):
+            return in_vehicle_coordinate_system(
+                distance_travelled * sinc(distance_travelled * curvature),
+                1/2 * distance_travelled ** 2 * curvature * sinc(1/2 * distance_travelled * curvature) ** 2
+            )
+        
+        for i in range(ARC_FIDELITY):
+            current_distance = (i / ARC_FIDELITY) * total_distance
+
+            current_pos = calculate_arc(current_distance)
+
+            positions.append(current_pos)
+        
+        heading_change = curvature * total_distance
+        final_position = calculate_arc(total_distance)
+
+        heading += heading_change
+        position = final_position
+    
+    return positions
+
+    
 
     
 def fill_bev_matrix(data: List) -> np.ndarray:
@@ -226,7 +284,7 @@ def plan(input_queue):
             coord_order="rc",
         )
 
-        print(f"path: {path}")
+        # print(f"path: {path}")
         controls, init_state = None, None
         if path is not None: #sometimes there is no vialable path so check this
             full_states = get_full_state(path)
@@ -237,9 +295,9 @@ def plan(input_queue):
         vis_controls = None
         if controls: 
             controls_path = get_control_path(controls, init_state)
-            print(f"path recreated from controls: {controls_path}")
-            
-            
+            # print(f"path recreated from controls: {controls_path}")
+            vehicle_back_path = get_control_path_back(controls, init_state)
+            print(f"path recreated from controls for back wheels: {vehicle_back_path}")
             
         overlay = visualize_plan(
             bev,
@@ -247,6 +305,7 @@ def plan(input_queue):
             goal_rc=goal,
             nodes_rc=nodes, 
             path_rc=path,
+            vehicle_rc=vehicle_back_path,
             node_radius=3,
             max_edge_len=20.0,
             branch_alpha=0.8,

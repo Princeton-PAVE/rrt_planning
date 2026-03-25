@@ -48,10 +48,11 @@ def main():
 
     #maze_map = [[0] * 100 for _ in range(10)]
     
-    for r in range(len(maze_map)):
-        for c in range(len(maze_map[0])):
-            if maze_map[r][c]:
-                print((r,c))
+    # for r in range(len(maze_map)):
+    #     for c in range(len(maze_map[0])):
+    #         if maze_map[r][c]:
+    #             # print((r,c))
+    #             pass
     
     
     #(y,x)
