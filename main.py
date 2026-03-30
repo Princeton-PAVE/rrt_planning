@@ -43,8 +43,10 @@ def main():
     start = (0.500 * MAZE_SIZE, 0.020 * MAZE_SIZE) # (y, x)
     goal = (0.500 * MAZE_SIZE, 0.800 * MAZE_SIZE)
     
-    MAX_STEP_SIZE = 0.04 # units are in proportion of MAZE_SIZE
-    REWIRE_SIZE = 0.025
+    AGENT_SIZE = 0.025
+    MAX_STEP_SIZE = 0.033 # units are in proportion of MAZE_SIZE
+    COLLISION_STEP_SIZE = 2 # units (nonp)
+    REWIRE_SIZE = 0.02
     MAX_ITERATIONS = 1000
     GOAL_SIZE = 0.05
     REBUILD_EVERY = 10
@@ -55,26 +57,29 @@ def main():
     maze_map = cv2.resize(maze_map, (MAZE_SIZE, MAZE_SIZE), interpolation=cv2.INTER_NEAREST) 
     
     #(y,x)
-    env = Maze2DEnv(maze_map)
-    planner = InformedRRTStar(env, start, goal)
+    env = Maze2DEnv(maze_map, agent_width=AGENT_SIZE * MAZE_SIZE)
+    planner = InformedRRTStar(env, start, goal, smallest_obs_width=COLLISION_STEP_SIZE)
     
     N_TRIALS = 30
+    n_found = 0
     t0 = perf_counter()
     for i in range(N_TRIALS):
         # print("run", i)
-        path, all_sampled = planner.calculate_path(
-            step_size=MAX_STEP_SIZE * MAZE_SIZE,
+        path = planner.calculate_path(
+            max_step_size=MAX_STEP_SIZE * MAZE_SIZE,
             radius=REWIRE_SIZE * MAZE_SIZE,
             max_iter=MAX_ITERATIONS,
             goal_thresh=GOAL_SIZE * MAZE_SIZE,
             rebuild_every=REBUILD_EVERY,
             goal_sample_rate=GOAL_SAMPLE_RATE,
+            path_only=False,
         )
+        if path is not None:
+            n_found += 1
     t1 = perf_counter()
+    all_sampled = planner.last_positions
     
-    print(f"Found in {(t1-t0)/N_TRIALS:.4f}")
-    # print(f"Path distance: {nodes[-1].cost}")
-    # print("path:", path)
+    print(f"{n_found} paths found in avg {(t1-t0)/N_TRIALS:.4f}s")
     print(MAX_ITERATIONS - len(all_sampled), " unused nodes")
     
     if path is not None:

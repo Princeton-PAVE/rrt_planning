@@ -14,7 +14,7 @@ class Maze2DEnv(gym.Env):
     def __init__(self, maze_map, step_size=0.1, max_steps=200, agent_width=4):
         super().__init__()
         
-        inflation_filter = np.ones((agent_width // 2, agent_width // 2), np.float32)
+        inflation_filter = np.ones((int(agent_width / 2), int(agent_width / 2)), np.float32)
         self.maze = cv2.filter2D(np.array(maze_map, dtype=np.uint8), -1, inflation_filter)  # 1 = wall, 0 = open
         # self.maze = np.array(maze_map, dtype=np.uint8)
         self.h, self.w = self.maze.shape
