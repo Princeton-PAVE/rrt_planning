@@ -180,10 +180,10 @@ def get_control_path_back(controls, init_state):
     # print("controls", controls)
     #pdb.set_trace()
 
-    def in_vehicle_coordinate_system(x, y):
-        x_transformed = position[0] + np.cos(heading) * x + np.cos(heading + math.pi / 2) * y
-        y_transformed = position[1] + np.sin(heading) * x + np.sin(heading + math.pi / 2) * y
-        return np.array([x_transformed, y_transformed], dtype = np.float64)
+    def in_vehicle_coordinate_system(y, x):
+        y_transformed = position[0] + np.sin(heading) * x + np.sin(heading + math.pi / 2) * y
+        x_transformed = position[1] + np.cos(heading) * x + np.cos(heading + math.pi / 2) * y
+        return np.array([y_transformed, x_transformed], dtype = np.float64)
 
     
 
@@ -201,8 +201,8 @@ def get_control_path_back(controls, init_state):
         # Calculates position of vehicle after it travels a given distance
         def calculate_arc(distance_travelled):
             return in_vehicle_coordinate_system(
-                distance_travelled * sinc(distance_travelled * curvature),
-                1/2 * distance_travelled ** 2 * curvature * sinc(1/2 * distance_travelled * curvature) ** 2
+                1/2 * distance_travelled ** 2 * curvature * sinc(1/2 * distance_travelled * curvature) ** 2,
+                distance_travelled * sinc(distance_travelled * curvature)
             )
         
         for i in range(ARC_FIDELITY):
@@ -217,6 +217,7 @@ def get_control_path_back(controls, init_state):
 
         heading += heading_change
         position = final_position
+        velocity += a * delta_t
     
     return positions
 
@@ -292,6 +293,20 @@ def plan(input_queue):
             controls = get_controls(full_states) #0 is to the left
             init_state = (start[0], start[1]) # starting position + velocity is zero, heading angle is zero (right)
         
+        controls = [
+            # (acceleration, steering angle)
+            (40, 0),
+            (0, -0.05),
+            (0, -0.1),
+            (0, -0.2),
+            (0, -0.4),
+            (0, -0.6),
+            (0, -0.8),
+            (0, -1.0),
+
+
+        ]
+
         vis_controls = None
         if controls: 
             controls_path = get_control_path(controls, init_state)
