@@ -75,6 +75,7 @@ WINDOW_NAME = "bev"
 m = 1 #mass
 delta_t = 1
 WHEELBASE = 1
+CONTROL_DISTANCE = 0.5
 
 
 """
@@ -126,6 +127,32 @@ def get_controls(states):
         #print("steering_angle", steering_angle, flush=True)
         #pdb.set_trace()
     return output
+
+#input is the states
+#output is List of Tuples [(acceleration, steering angle, hold duration)]
+#Hold duration is the time that the acceleration and steering angle will be held.
+#length is 1 less than states
+#full states
+#use darcy's control point idea to create circles between nodes
+def get_controls_curvy(states):
+    output = []
+    (prev_y, prev_x), prev_vel, prev_heading = states[0]
+    for (y,x), vel, heading in states[1:]:
+        start_direction = (np.sin(heading), np.cos(heading))
+
+        diff = (y - prev_y, x - prev_x)
+        
+        forward = start_direction[0] * diff[0] + start_direction[1] * diff[1]
+        side = start_direction[1] * diff[0] - start_direction[0] * diff[1]
+
+        # midpoint = (0.5 * forward, 0.5 * side)
+
+        focal_distance = (0.5 * forward + CONTROL_DISTANCE) * forward / side + 0.5 * side
+
+        output.append((0, steering_angle))
+
+        prev_y, prev_x, prev_vel, prev_heading = y, x, vel, heading
+    
 
 
 #HEADING ANGLE IS ABSOLUTE
@@ -220,8 +247,6 @@ def get_control_path_back(controls, init_state):
         velocity += a * delta_t
     
     return positions
-
-    
 
     
 def fill_bev_matrix(data: List) -> np.ndarray:
