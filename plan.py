@@ -33,10 +33,6 @@ import pdb
 
 
 
-
-
-
-
 #we want matrix to be an occupancy matrix
 
 
@@ -73,7 +69,7 @@ WINDOW_NAME = "bev"
 
 
 m = 1 #mass
-delta_t = 1
+delta_t = 1.0
 WHEELBASE = 1
 
 
@@ -185,7 +181,6 @@ def get_control_path_back(controls, init_state):
         x_transformed = position[1] + np.cos(heading) * x + np.cos(heading + math.pi / 2) * y
         return np.array([y_transformed, x_transformed], dtype = np.float64)
 
-    
 
     for a, steering_angle in controls:
         total_distance = delta_t * velocity + 1/2 * a * delta_t ** 2
@@ -293,16 +288,22 @@ def plan(input_queue):
             controls = get_controls(full_states) #0 is to the left
             init_state = (start[0], start[1]) # starting position + velocity is zero, heading angle is zero (right)
         
+        
+        
+        #at time = 0, for (100, 0.01) and then (0,0s) everywhere else. it should map same thing 
+        #since there's no prev_velocity
+        
+        #apply acceleration over entire timestep; heading angle is still snapped into place
         controls = [
             # (acceleration, steering angle)
-            (40, 0),
-            (0, -0.05),
-            (0, -0.1),
-            (0, -0.2),
-            (0, -0.4),
-            (0, -0.6),
-            (0, -0.8),
-            (0, -1.0),
+            (20, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0.01),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
 
 
         ]
