@@ -72,7 +72,7 @@ m = 1 #mass
 delta_t = 1.0
 #SCALE BETTER
 WHEELBASE = 1 #offset from backwheel to front wheel
-CONTROL_DISTANCE = 0.5 #distance from center to backwheel
+CONTROL_DISTANCE = 5 #distance from center to backwheel
 
 
 """
@@ -173,18 +173,23 @@ def get_controls_curvy(states):
         print("WHEELBASE", WHEELBASE)
         print("pivot_distance", pivot_distance)
         steering_angle = np.arctan2(WHEELBASE,  pivot_distance) #steering angle
-
+        steering_angle = np.mod(steering_angle + np.pi / 2, np.pi) - np.pi / 2
         # finding angle of rotation of the vehicle around the pivot point
         pivot_to_target = np.sqrt((side - pivot_distance) ** 2 + (forward + CONTROL_DISTANCE) ** 2)
         pivot_to_control = np.sqrt(pivot_distance ** 2 + CONTROL_DISTANCE ** 2)
         control_to_target = np.sqrt(side ** 2 + forward ** 2)
+
+
         vehicle_rotation = np.arccos((control_to_target ** 2 - pivot_to_target ** 2 - pivot_to_control ** 2 ) / 
                                         (-2 * pivot_to_target * pivot_to_control))
 
         # updating next heading of the vehicle
+        if side < 0:
+            vehicle_rotation = -vehicle_rotation
         heading = heading + vehicle_rotation
+        print(vehicle_rotation)
 
-        travel_distance = np.abs(vehicle_rotation) * pivot_distance
+        travel_distance = np.abs(vehicle_rotation) * np.abs(pivot_distance)
         segment_time = travel_distance / prev_vel
         
         output.append((0, steering_angle, segment_time)) #we still need to figure out acceleration
@@ -327,7 +332,7 @@ def fill_bev_matrix(data: List) -> np.ndarray:
 #main loop 
 def plan(input_queue):
     #queue 
-    start = [500,10]
+    start = [200,10]
     goal = [500,700]
     while input_queue:
         current_data = input_queue.pop()
@@ -347,6 +352,16 @@ def plan(input_queue):
             coord_order="rc",
         )
 
+        # path = [
+        #     (200, 10),
+        #     (250, 200),
+        #     (150, 350),
+        #     (200, 500),
+        #     (400, 650)
+            
+
+        # ]
+
         # print(f"path: {path}")
         controls, init_state = None, None
         if path is not None: #sometimes there is no vialable path so check this
@@ -355,6 +370,7 @@ def plan(input_queue):
             #controls = get_controls(full_states) #0 is to the left
             init_state = (start[0], start[1]) # starting position + velocity is zero, heading angle is zero (right)
             controls = get_controls_curvy(path) #not full path just these paths
+            print("curvy path!: " + str(controls))
         
         
         
