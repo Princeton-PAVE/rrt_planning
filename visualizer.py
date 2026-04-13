@@ -12,9 +12,7 @@ class BevEnv:
         r = int(round(p[0])); c = int(round(p[1]))
         if r < 0 or r >= self.h or c < 0 or c >= self.w:
             return True
-        return self.occ[r, c] == 0
-
-        
+        return self.occ[r, c] == 0        
         
 def init_visualizer():
     cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
