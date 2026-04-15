@@ -72,7 +72,8 @@ m = 1 #mass
 delta_t = 1.0
 #SCALE BETTER
 WHEELBASE = 1 #offset from backwheel to front wheel
-CONTROL_DISTANCE = 5 #distance from center to backwheel
+CONTROL_DISTANCE = 5 #distance from center to backwheel, 
+# potentially experiment more with this value; it affects how sharply the car can turn
 
 
 """
@@ -163,33 +164,53 @@ def get_controls_curvy(states):
         
         forward = start_direction[0] * diff[0] + start_direction[1] * diff[1]
         side = start_direction[1] * diff[0] - start_direction[0] * diff[1]
-
-        # midpoint = (0.5 * forward, 0.5 * side)
+        
+        print("Forward: " + str(forward))
+        print("Side: " + str(side))
         
         #TURNING ANGLE MATHS
         #x pivot distance
         pivot_distance = (0.5 * forward + CONTROL_DISTANCE) * forward / side + 0.5 * side #x distance from pivot to backwheel
+        
+        if np.isinf(pivot_distance):
+            travel_distance = np.hypot(side, forward)
+            segment_time = travel_distance / prev_vel
+            steering_angle = 0
+            output.append((0, steering_angle, segment_time))
+            prev_y, prev_x, prev_vel, prev_heading = y, x, INITIAL_VELOCITY, heading
+            continue
+        
         # "y" pivot distance = WHEELBASE 
-        print("WHEELBASE", WHEELBASE)
-        print("pivot_distance", pivot_distance)
+        # print("WHEELBASE", WHEELBASE)
+        # print("pivot_distance", pivot_distance)
         steering_angle = np.arctan2(WHEELBASE,  pivot_distance) #steering angle
         steering_angle = np.mod(steering_angle + np.pi / 2, np.pi) - np.pi / 2
         # finding angle of rotation of the vehicle around the pivot point
-        pivot_to_target = np.sqrt((side - pivot_distance) ** 2 + (forward + CONTROL_DISTANCE) ** 2)
-        pivot_to_control = np.sqrt(pivot_distance ** 2 + CONTROL_DISTANCE ** 2)
-        control_to_target = np.sqrt(side ** 2 + forward ** 2)
+        pivot_to_target = np.hypot(side - pivot_distance, forward + CONTROL_DISTANCE)
+        pivot_to_control = np.hypot(pivot_distance, CONTROL_DISTANCE)
+        control_to_target = np.hypot(side, forward)
 
 
-        vehicle_rotation = np.arccos((control_to_target ** 2 - pivot_to_target ** 2 - pivot_to_control ** 2 ) / 
-                                        (-2 * pivot_to_target * pivot_to_control))
+        # vehicle_rotation = np.arccos((control_to_target ** 2 - pivot_to_target ** 2 - pivot_to_control ** 2 ) / 
+        #                                 (-2 * pivot_to_target * pivot_to_control))
+
+        
+        slope = CONTROL_DISTANCE / pivot_distance
+        vehicle_rotation = 2 * np.arctan2(-forward * slope + side, forward + slope * side)
+
+        
+
+
 
         # updating next heading of the vehicle
-        if side < 0:
-            vehicle_rotation = -vehicle_rotation
+        # if side < 0:
+        #     vehicle_rotation = -vehicle_rotation
         heading = heading + vehicle_rotation
-        print(vehicle_rotation)
 
         travel_distance = np.abs(vehicle_rotation) * np.abs(pivot_distance)
+        print("Travel Distance: " + str(travel_distance))
+        print("Pivot Distance: " + str(pivot_distance))
+        print()
         segment_time = travel_distance / prev_vel
         
         output.append((0, steering_angle, segment_time)) #we still need to figure out acceleration
