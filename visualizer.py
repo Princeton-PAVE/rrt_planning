@@ -20,16 +20,17 @@ def init_visualizer():
 def visualize_plan(
     maze_uint8: np.ndarray,     
     start_rc, goal_rc,           
-    nodes_rc=None,             
-    path_rc=None, 
-    vehicle_rc=None,            
+    nodes_rc=None,
+    path_rc=None,
+    vehicle_rc=None,
     scale=1,
-    node_stride=2,           
-    node_radius=2,          
-    edge_stride=3,          
-    max_edge_len=25.0,           
-    branch_alpha=0.75, 
-    vis_controls=None          
+    node_stride=2,
+    node_radius=2,
+    edge_stride=3,
+    max_edge_len=25.0,
+    branch_alpha=0.75,
+    vis_controls_purple=None,
+    vis_controls_red=None,
 ):
     maze = maze_uint8.astype(np.uint8)
     if maze.max() <= 1:
@@ -44,12 +45,17 @@ def visualize_plan(
     overlay = base.copy()
 
 
-    #check this
-    if vis_controls is not None and len(vis_controls) > 1:
-        p = np.asarray(vis_controls, dtype=np.float32)
+    if vis_controls_purple is not None and len(vis_controls_purple) > 1:
+        p = np.asarray(vis_controls_purple, dtype=np.float32)
         poly = np.stack([p[:, 1], p[:, 0]], axis=1)
         poly = np.round(poly).astype(np.int32).reshape(-1, 1, 2)
-        cv2.polylines(overlay, [poly], False, (255, 0, 0), thickness=4, lineType=cv2.LINE_AA) #OUR CONTROL RECONSTRUCTION IS BLUE
+        cv2.polylines(overlay, [poly], False, (0, 0, 0), thickness=4, lineType=cv2.LINE_AA)
+
+    if vis_controls_red is not None and len(vis_controls_red) > 1:
+        p = np.asarray(vis_controls_red, dtype=np.float32)
+        poly = np.stack([p[:, 1], p[:, 0]], axis=1)
+        poly = np.round(poly).astype(np.int32).reshape(-1, 1, 2)
+        cv2.polylines(overlay, [poly], False, (0, 165, 255), thickness=4, lineType=cv2.LINE_AA)
 
         
     if nodes_rc is not None and len(nodes_rc) > 1:
@@ -113,24 +119,23 @@ def visualize_plan(
     legend_x, legend_y = 10, 20
     line_gap = 25
 
-
-    # Red line (back wheel reconstructed controls)
-    cv2.line(out, (legend_x, legend_y + line_gap * 2), 
-             (legend_x + 30, legend_y + line_gap*2), (0, 0, 255), 2)
-    cv2.putText(out, "Back Wheel Reconstructed (controls)",
-                (legend_x + 40, legend_y + line_gap*2 + 5),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2, cv2.LINE_AA)
-
-    # Blue line (point mass reconstructed controls)
-    cv2.line(out, (legend_x, legend_y), (legend_x + 30, legend_y), (255, 0, 0), 4)
-    cv2.putText(out, "Point Mass Reconstructed (controls)", 
+    # Green line (RRT* ground truth)
+    cv2.line(out, (legend_x, legend_y), (legend_x + 30, legend_y), (0, 255, 0), 4)
+    cv2.putText(out, "Ground truth (RRT*)",
                 (legend_x + 40, legend_y + 5),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2, cv2.LINE_AA)
-    
-    # Green line (RRT* path)
-    cv2.line(out, (legend_x, legend_y + line_gap), 
-                (legend_x + 30, legend_y + line_gap), (0, 255, 0), 4)
-    cv2.putText(out, "Ground truth (RRT*)", 
-                (legend_x + 40, legend_y + line_gap + 5),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA)
+
+    # Black line (long control dist = 5)
+    cv2.line(out, (legend_x, legend_y + line_gap),
+             (legend_x + 30, legend_y + line_gap), (0, 0, 0), 4)
+    cv2.putText(out, "Curvy path (control dist=5)",
+                (legend_x + 40, legend_y + line_gap + 5),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2, cv2.LINE_AA)
+
+    # Orange line (short control dist = 0.1)
+    cv2.line(out, (legend_x, legend_y + line_gap * 2),
+             (legend_x + 30, legend_y + line_gap * 2), (0, 165, 255), 4)
+    cv2.putText(out, "Curvy path (control dist=0.1)",
+                (legend_x + 40, legend_y + line_gap * 2 + 5),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 165, 255), 2, cv2.LINE_AA)
     return out

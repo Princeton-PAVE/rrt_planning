@@ -151,7 +151,7 @@ INITIAL_HEADING = 0
 
 #we only rollout bc we dont know the direction of the car; we know it'll cross all the waypoints
 #but we don't know what direction it'll be facing at each waypoint
-def get_controls_curvy(states):
+def get_controls_curvy(states, control_distance=CONTROL_DISTANCE):
     output = []
     heading = INITIAL_HEADING
     prev_y, prev_x = states[0]
@@ -161,17 +161,17 @@ def get_controls_curvy(states):
         start_direction = (np.sin(heading), np.cos(heading))
 
         diff = (y - prev_y, x - prev_x)
-        
+
         forward = start_direction[0] * diff[0] + start_direction[1] * diff[1]
         side = start_direction[1] * diff[0] - start_direction[0] * diff[1]
-        
+
         print("Forward: " + str(forward))
         print("Side: " + str(side))
-        
+
         #TURNING ANGLE MATHS
         #x pivot distance
-        pivot_distance = (0.5 * forward + CONTROL_DISTANCE) * forward / side + 0.5 * side #x distance from pivot to backwheel
-        
+        pivot_distance = (0.5 * forward + control_distance) * forward / side + 0.5 * side #x distance from pivot to backwheel
+
         if np.isinf(pivot_distance):
             travel_distance = np.hypot(side, forward)
             segment_time = travel_distance / prev_vel
@@ -179,23 +179,23 @@ def get_controls_curvy(states):
             output.append((0, steering_angle, segment_time))
             prev_y, prev_x, prev_vel, prev_heading = y, x, INITIAL_VELOCITY, heading
             continue
-        
-        # "y" pivot distance = WHEELBASE 
+
+        # "y" pivot distance = WHEELBASE
         # print("WHEELBASE", WHEELBASE)
         # print("pivot_distance", pivot_distance)
         steering_angle = np.arctan2(WHEELBASE,  pivot_distance) #steering angle
         steering_angle = np.mod(steering_angle + np.pi / 2, np.pi) - np.pi / 2
         # finding angle of rotation of the vehicle around the pivot point
-        pivot_to_target = np.hypot(side - pivot_distance, forward + CONTROL_DISTANCE)
-        pivot_to_control = np.hypot(pivot_distance, CONTROL_DISTANCE)
+        pivot_to_target = np.hypot(side - pivot_distance, forward + control_distance)
+        pivot_to_control = np.hypot(pivot_distance, control_distance)
         control_to_target = np.hypot(side, forward)
 
 
-        # vehicle_rotation = np.arccos((control_to_target ** 2 - pivot_to_target ** 2 - pivot_to_control ** 2 ) / 
+        # vehicle_rotation = np.arccos((control_to_target ** 2 - pivot_to_target ** 2 - pivot_to_control ** 2 ) /
         #                                 (-2 * pivot_to_target * pivot_to_control))
 
-        
-        slope = CONTROL_DISTANCE / pivot_distance
+
+        slope = control_distance / pivot_distance
         vehicle_rotation = 2 * np.arctan2(-forward * slope + side, forward + slope * side)
 
         
@@ -384,54 +384,27 @@ def plan(input_queue):
         # ]
 
         # print(f"path: {path}")
-        controls, init_state = None, None
+        vis_long = None
+        vis_short = None
         if path is not None: #sometimes there is no vialable path so check this
-            #full_states = get_full_state(path)
-            #print("full_state:", full_states)
-            #controls = get_controls(full_states) #0 is to the left
-            init_state = (start[0], start[1]) # starting position + velocity is zero, heading angle is zero (right)
-            controls = get_controls_curvy(path) #not full path just these paths
-            print("curvy path!: " + str(controls))
-        
-        
-        
-        #at time = 0, for (100, 0.01) and then (0,0s) everywhere else. it should map same thing 
-        #since there's no prev_velocity
-        
-        #apply acceleration over entire timestep; heading angle is still snapped into place
-        # controls = [
-        #     # (acceleration, steering angle)
-        #     (20, 0),
-        #     (0, 0),
-        #     (0, 0),
-        #     (0, 0.01),
-        #     (0, 0),
-        #     (0, 0),
-        #     (0, 0),
-        #     (0, 0),
-        # ]
+            init_state = (start[0], start[1])
+            controls_long = get_controls_curvy(path, control_distance=5)
+            controls_short = get_controls_curvy(path, control_distance=0.1)
+            vis_long = get_control_path_back(controls_long, init_state)
+            vis_short = get_control_path_back(controls_short, init_state)
 
-        vis_controls = None
-        # if controls: 
-        #     controls_path = get_control_path(controls, init_state)
-        #     # print(f"path recreated from controls: {controls_path}")
-        #     vehicle_back_path = get_control_path_back(controls, init_state)
-        #     print(f"path recreated from controls for back wheels: {vehicle_back_path}")
-        
-        #recreate path from curvy assumption
-        visualize_curvy = get_control_path_back(controls, init_state)
-            
         overlay = visualize_plan(
             bev,
             start_rc=start,
             goal_rc=goal,
-            nodes_rc=nodes, 
+            nodes_rc=nodes,
             path_rc=path,
             vehicle_rc=None,
             node_radius=3,
             max_edge_len=20.0,
             branch_alpha=0.8,
-            vis_controls=visualize_curvy
+            vis_controls_purple=vis_long,
+            vis_controls_red=vis_short,
         )
 
         #extract actions
